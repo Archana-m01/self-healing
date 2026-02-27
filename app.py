@@ -1,11 +1,9 @@
-from flask import Flask, render_template, request, redirect, url_for, send_file, session
+from flask import Flask, render_template, request, redirect, url_for, session
 from functools import wraps
 from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.chrome.service import Service
-from webdriver_manager.chrome import ChromeDriverManager
 from selenium import webdriver
 from selenium.webdriver.common.by import By
-import time, uuid, io, datetime
+import time, uuid, datetime
 import re
 
 app = Flask(__name__)
@@ -111,22 +109,17 @@ def run():
             logs.append({"type": "info", "text": "Launching Chrome browser..."})
 
             chrome_options = Options()
-
-            chrome_options.add_argument("--headless=new")
-            chrome_options.add_argument("--no-sandbox")                     
+            chrome_options.add_argument("--headless")
+            chrome_options.add_argument("--no-sandbox")
             chrome_options.add_argument("--disable-dev-shm-usage")
             chrome_options.add_argument("--disable-gpu")
-            chrome_options.add_argument("--disable-software-rasterizer")
-            chrome_options.add_argument("--disable-extensions")
             chrome_options.add_argument("--window-size=1920,1080")
-            chrome_options.add_argument("--remote-debugging-port=9222")
 
-            service = Service(ChromeDriverManager().install())
-
-            driver = webdriver.Chrome(service=service, options=chrome_options)
+            driver = webdriver.Chrome(options=chrome_options)
 
             driver.get(url)
             time.sleep(3)
+
             logs.append({"type": "info", "text": f"Navigated to: {url}"})
 
             try:
@@ -223,11 +216,13 @@ def users():
     admins = len([u for u in users_list if u["role"] == "Admin"])
     regular = len([u for u in users_list if u["role"] == "User"])
 
-    return render_template("users.html",
-                           users=users_list,
-                           total=total,
-                           admins=admins,
-                           regular=regular)
+    return render_template(
+        "users.html",
+        users=users_list,
+        total=total,
+        admins=admins,
+        regular=regular
+    )
 
 # ---------------- START SERVER ----------------
 if __name__ == "__main__":
