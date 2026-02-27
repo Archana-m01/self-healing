@@ -114,14 +114,14 @@ def run():
             chrome_options.add_argument("--disable-dev-shm-usage")
             chrome_options.add_argument("--disable-gpu")
             chrome_options.add_argument("--window-size=1920,1080")
-            chrome_options.add_argument("--disable-software-rasterizer")
             chrome_options.add_argument("--remote-debugging-port=9222")
 
-            driver = webdriver.Chrome(options=chrome_options)
+            service = Service(ChromeDriverManager().install())
+
+            driver = webdriver.Chrome(service=service, options=chrome_options)
 
             driver.get(url)
             time.sleep(3)
-
             logs.append({"type": "info", "text": f"Navigated to: {url}"})
 
             try:
