@@ -3,7 +3,11 @@ from functools import wraps
 from selenium.webdriver.chrome.options import Options
 from selenium import webdriver
 from selenium.webdriver.common.by import By
-import time, uuid, datetime
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+import time
+import uuid
+import datetime
 import re
 
 app = Flask(__name__)
@@ -19,14 +23,23 @@ def is_valid_url(url):
     )
     return bool(re.match(pattern, url))
 
+
 # ---------------- GLOBAL STORAGE ----------------
-stats = {"total": 0, "passed": 0, "failed": 0, "healed": 0}
+stats = {
+    "total": 0,
+    "passed": 0,
+    "failed": 0,
+    "healed": 0
+}
+
 REPORT_DATA = []
 HEAL_HISTORY = []
+
 
 # ---------------- LOGIN ----------------
 VALID_USERNAME = "admin"
 VALID_PASSWORD = "1234"
+
 
 def login_required(f):
     @wraps(f)
@@ -36,6 +49,7 @@ def login_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
+
 suite_urls = {
     "Login Test": "https://example.com/login",
     "Checkout Flow": "https://example.com/shop",
@@ -44,22 +58,30 @@ suite_urls = {
     "Search Functionality": "https://google.com"
 }
 
+
 # ---------------- LOGIN ROUTE ----------------
 @app.route("/login", methods=["GET", "POST"])
 def login():
     error = None
+
     if request.method == "POST":
-        if request.form.get("username") == VALID_USERNAME and request.form.get("password") == VALID_PASSWORD:
+        username = request.form.get("username")
+        password = request.form.get("password")
+
+        if username == VALID_USERNAME and password == VALID_PASSWORD:
             session["user"] = VALID_USERNAME
             return redirect(url_for("dashboard"))
         else:
             error = "Invalid Username or Password ❌"
+
     return render_template("login.html", error=error)
+
 
 @app.route("/logout")
 def logout():
     session.pop("user", None)
     return redirect(url_for("login"))
+
 
 # ---------------- DASHBOARD ----------------
 @app.route("/")
@@ -67,11 +89,11 @@ def logout():
 def dashboard():
     return render_template("dashboard.html", stats=stats)
 
+
 # ---------------- RUN TEST ----------------
 @app.route("/run", methods=["GET", "POST"])
 @login_required
 def run():
-
     logs = []
     status = None
     healed = False
@@ -83,6 +105,7 @@ def run():
         selected_url = request.form.get("selected_url", "").strip()
         custom_url = request.form.get("custom_url", "").strip()
 
+        # URL selection priority
         if custom_url:
             url = custom_url
         elif selected_url:
@@ -92,41 +115,79 @@ def run():
         else:
             url = None
 
+        # URL validation
         if not url:
-            logs.append({"type": "error", "text": "No URL provided ❌"})
-            return render_template("run_tests.html", logs=logs, status="Failed", suites=suite_urls.keys())
+            logs.append({
+                "type": "error",
+                "text": "No URL provided ❌"
+            })
+            return render_template(
+                "run_tests.html",
+                logs=logs,
+                status="Failed",
+                suites=suite_urls.keys()
+            )
 
         if not url.startswith("http"):
             url = "https://" + url
 
         if not is_valid_url(url):
-            logs.append({"type": "error", "text": "Invalid URL format ❌"})
-            return render_template("run_tests.html", logs=logs, status="Failed", suites=suite_urls.keys())
+            logs.append({
+                "type": "error",
+                "text": "Invalid URL format ❌"
+            })
+            return render_template(
+                "run_tests.html",
+                logs=logs,
+                status="Failed",
+                suites=suite_urls.keys()
+            )
 
         start = time.time()
 
         try:
-            logs.append({"type": "info", "text": "Launching Chrome browser..."})
+            logs.append({
+                "type": "info",
+                "text": "Launching Chrome browser..."
+            })
 
+            # Chrome options for Render / Headless deployment
             chrome_options = Options()
             chrome_options.add_argument("--headless")
             chrome_options.add_argument("--no-sandbox")
             chrome_options.add_argument("--disable-dev-shm-usage")
             chrome_options.add_argument("--disable-gpu")
             chrome_options.add_argument("--window-size=1920,1080")
+            chrome_options.add_argument("--disable-extensions")
+            chrome_options.add_argument("--disable-infobars")
 
             driver = webdriver.Chrome(options=chrome_options)
 
+            # Open URL
             driver.get(url)
-            time.sleep(3)
 
-            logs.append({"type": "info", "text": f"Navigated to: {url}"})
+            # Better than time.sleep(3)
+            WebDriverWait(driver, 10).until(
+                EC.presence_of_element_located((By.TAG_NAME, "body"))
+            )
 
+            logs.append({
+                "type": "info",
+                "text": f"Navigated to: {url}"
+            })
+
+            # Simulated broken locator + healing
             try:
                 driver.find_element(By.ID, "wrong-id")
+
             except:
-                logs.append({"type": "heal", "text": "Broken element detected. Healing applied..."})
+                logs.append({
+                    "type": "heal",
+                    "text": "Broken element detected. Healing applied..."
+                })
+
                 driver.find_element(By.TAG_NAME, "body")
+
                 healed = True
                 stats["healed"] += 1
 
@@ -139,8 +200,10 @@ def run():
                     "time": datetime.datetime.now().strftime("%b %d, %H:%M")
                 })
 
+            # Screenshot save
             screenshot_path = f"static/test_{int(time.time())}.png"
             driver.save_screenshot(screenshot_path)
+
             driver.quit()
 
             stats["passed"] += 1
@@ -149,9 +212,14 @@ def run():
         except Exception as e:
             stats["failed"] += 1
             status = "Failed"
-            logs.append({"type": "error", "text": f"Execution failed: {str(e)}"})
+
+            logs.append({
+                "type": "error",
+                "text": f"Execution failed: {str(e)}"
+            })
 
         stats["total"] += 1
+
         duration = round(time.time() - start, 2)
         rid = str(uuid.uuid4())[:8]
 
@@ -166,27 +234,44 @@ def run():
             "executed": datetime.datetime.now().strftime("%b %d, %H:%M")
         })
 
-    return render_template("run_tests.html", logs=logs, status=status, suites=suite_urls.keys())
+    return render_template(
+        "run_tests.html",
+        logs=logs,
+        status=status,
+        suites=suite_urls.keys()
+    )
+
 
 # ---------------- REPORTS ----------------
 @app.route("/reports")
 @login_required
 def reports():
-    return render_template("reports.html", reports=REPORT_DATA)
+    return render_template(
+        "reports.html",
+        reports=REPORT_DATA
+    )
+
 
 # ---------------- HEALING HISTORY ----------------
 @app.route("/healing")
 @login_required
 def healing():
-    return render_template("healing.html", history=HEAL_HISTORY)
+    return render_template(
+        "healing.html",
+        history=HEAL_HISTORY
+    )
+
 
 # ---------------- USERS ----------------
-users_list = [{
-    "id": str(uuid.uuid4()),
-    "name": "Chinni M",
-    "email": "chinni.m.m435@gmail.com",
-    "role": "Admin"
-}]
+users_list = [
+    {
+        "id": str(uuid.uuid4()),
+        "name": "Chinni M",
+        "email": "chinni.m.m435@gmail.com",
+        "role": "Admin"
+    }
+]
+
 
 @app.route("/users", methods=["GET", "POST"])
 @login_required
@@ -205,16 +290,27 @@ def users():
                 "email": email,
                 "role": role
             })
+
         return redirect(url_for("users"))
 
     remove_id = request.args.get("remove")
+
     if remove_id:
-        users_list = [u for u in users_list if u["id"] != remove_id]
+        users_list = [
+            user for user in users_list
+            if user["id"] != remove_id
+        ]
         return redirect(url_for("users"))
 
     total = len(users_list)
-    admins = len([u for u in users_list if u["role"] == "Admin"])
-    regular = len([u for u in users_list if u["role"] == "User"])
+    admins = len([
+        user for user in users_list
+        if user["role"] == "Admin"
+    ])
+    regular = len([
+        user for user in users_list
+        if user["role"] == "User"
+    ])
 
     return render_template(
         "users.html",
@@ -223,6 +319,7 @@ def users():
         admins=admins,
         regular=regular
     )
+
 
 # ---------------- START SERVER ----------------
 if __name__ == "__main__":
