@@ -6,7 +6,6 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.chrome.service import Service
-
 import time
 import uuid
 import datetime
@@ -155,7 +154,7 @@ def run():
 
             chrome_options = Options()
 
-# Render-safe Linux Chromium setup
+            # Render-safe Linux Chromium setup
             chrome_options.binary_location = "/usr/bin/chromium"
 
             chrome_options.add_argument("--headless")
@@ -167,16 +166,16 @@ def run():
             chrome_options.add_argument("--disable-infobars")
             chrome_options.add_argument("--remote-debugging-port=9222")
 
-service = Service("/usr/bin/chromedriver")
+            service = Service("/usr/bin/chromedriver")
 
-driver = webdriver.Chrome(
-    service=service,
-    options=chrome_options
-)
+            driver = webdriver.Chrome(
+                service=service,
+                options=chrome_options
+            )
+
             # Open URL
             driver.get(url)
 
-            # Better than time.sleep(3)
             WebDriverWait(driver, 10).until(
                 EC.presence_of_element_located((By.TAG_NAME, "body"))
             )
